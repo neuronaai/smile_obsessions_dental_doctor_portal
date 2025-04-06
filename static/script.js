@@ -1,74 +1,85 @@
 // script.js
 
-// We'll assume your server has an endpoint like /api/current_list
-// that returns JSON array of patients:
-//   [ { name: "Will Smith", arrived: "2025-04-06 10:15 AM", status: "ready" }, ... ]
-
+// Grab the <tbody> where we place rows:
 const patientTableBody = document.getElementById('patientTableBody');
 
-// Example: fetch your real data from the server, e.g. /api/current_list
+/**
+ * loadPatients():
+ * Fetches the current list of checked-in patients from /api/current_list
+ * and updates the table in the DOM.
+ */
 async function loadPatients() {
   try {
-    // This is an example endpoint. Adapt to your actual route if needed:
+    // 1) Make GET request to /api/current_list
     const resp = await fetch('/api/current_list');
-    const data = await resp.json();
+    if (!resp.ok) {
+      console.error("Failed /api/current_list:", resp.statusText);
+      return;
+    }
+    const data = await resp.json();  // data is e.g. [ { name, arrived, status }, ... ]
 
-    // Clear the table body
+    // 2) Clear existing rows
     patientTableBody.innerHTML = '';
 
-    // Suppose each patient object is { name, arrived, status, etc. }
-    data.forEach((p) => {
+    // 3) Loop over each patient object and build a <tr>
+    data.forEach((patient) => {
       const tr = document.createElement('tr');
 
+      // A) Name column
       const nameTd = document.createElement('td');
-      nameTd.textContent = p.name; 
-      // or p.first_name + " " + p.last_name
+      nameTd.textContent = patient.name; 
       tr.appendChild(nameTd);
 
+      // B) Arrived column
       const arrivedTd = document.createElement('td');
-      arrivedTd.textContent = p.arrived; // e.g. "2025-04-06 10:15 AM"
+      arrivedTd.textContent = patient.arrived; 
       tr.appendChild(arrivedTd);
 
+      // C) Action column
       const actionTd = document.createElement('td');
-
-      // If they've not been "called in" yet, show "Call In" button:
-      if (p.status === "ready") {
-        const btn = document.createElement('button');
-        btn.textContent = "Call In";
-        btn.classList.add('call-button');
-        btn.onclick = () => handleCallIn(p);
-        actionTd.appendChild(btn);
+      if (patient.status === "ready") {
+        // Show a "Call In" button
+        const callBtn = document.createElement('button');
+        callBtn.textContent = "Call In";
+        callBtn.classList.add('call-button');
+        callBtn.onclick = () => handleCallIn(patient);
+        actionTd.appendChild(callBtn);
       } else {
         // e.g. "Already Called In"
         actionTd.textContent = "Already Called In";
       }
       tr.appendChild(actionTd);
 
+      // 4) Append <tr> to <tbody>
       patientTableBody.appendChild(tr);
     });
   } catch (err) {
-    console.error("Failed to load patients:", err);
+    console.error("Error loading patients:", err);
   }
 }
 
-// Suppose we have an endpoint /api/announce or /api/call_in
-// that triggers Emmersa to do something
-async function handleCallIn(patientObj) {
+/**
+ * handleCallIn(patient):
+ * Calls the /api/call_in endpoint to mark the patient as "called"
+ * Then refreshes the table.
+ */
+async function handleCallIn(patient) {
   try {
+    // 1) Send POST /api/call_in with { name: "...", arrived: "..." }
     const resp = await fetch('/api/call_in', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        name: patientObj.name, // or first_name/last_name
-        arrived: patientObj.arrived 
+      body: JSON.stringify({
+        name: patient.name,
+        arrived: patient.arrived
       })
     });
     const resData = await resp.json();
+
+    // 2) If success, show alert & reload table
     if (resp.ok) {
-      // Possibly update the UI
-      alert(`${patientObj.name} was called in!`);
-      // Reload the table to show new status
-      loadPatients();
+      alert(`${patient.name} was called in!`);
+      loadPatients(); // refresh UI
     } else {
       alert("Error calling in patient: " + (resData.error || resp.statusText));
     }
@@ -77,8 +88,10 @@ async function handleCallIn(patientObj) {
   }
 }
 
-// On page load, fetch patients every X seconds
+/**
+ * On page load => load once, then poll every 10 seconds
+ */
 window.addEventListener('DOMContentLoaded', () => {
   loadPatients();
-  setInterval(loadPatients, 10000); // poll every 10s
+  setInterval(loadPatients, 10000);
 });
