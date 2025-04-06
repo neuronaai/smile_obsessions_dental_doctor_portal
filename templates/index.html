@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Doctor Dashboard - Smile Obsession</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <!-- Header -->
+  <header>
+    <!-- Left side: Logo -->
+    <div class="header-left">
+      <img src="{{ url_for('static', filename='logo.png') }}"
+           alt="Smile Obsession Logo"
+           class="clinic-logo" />
+    </div>
+    <!-- Right side: Title -->
+    <div class="header-right">
+      <h1>Doctor Dashboard</h1>
+    </div>
+  </header>
+
+  <main class="container">
+    <h2>Checked-In Patients</h2>
+    
+    <table class="patients-table">
+      <thead>
+        <tr>
+          <th style="width:35%">Name</th>
+          <th style="width:35%">Arrived</th>
+          <th style="width:30%">Action</th>
+        </tr>
+      </thead>
+      <tbody id="patientTableBody">
+        <!-- Populated by script.js -->
+      </tbody>
+    </table>
+  </main>
+
+  <footer>
+    &copy; 2025 Smile Obsession. All rights reserved.
+  </footer>
+
+  <!-- Include your front-end script -->
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
