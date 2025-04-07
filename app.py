@@ -4,7 +4,6 @@ import threading
 from flask import Flask, request, jsonify, render_template
 from datetime import datetime, timedelta
 from flask_cors import CORS
-import pyttsx3  # for TTS
 
 app = Flask(__name__)
 CORS(app)
@@ -12,65 +11,27 @@ CORS(app)
 # --------------------------------------------------------------------------------
 # 1) In-memory data store: 'checked_in_patients'
 # --------------------------------------------------------------------------------
-# We'll start with one dummy patient so you can test TTS immediately:
+# We'll still include one dummy patient to test calling in immediately.
 checked_in_patients = [
     {
         "name": "John Doe",
         "arrived": "2025-04-09 09:00 AM",
         "status": "ready"
-        # "called_time": None  <-- not needed until they're called
+        # "called_time": None  <-- not set until they're called
     }
 ]
 """
-Example structure:
-[
-  {
-    "name": "Will Smith",
-    "arrived": "2025-04-06 10:15 AM",
-    "status": "ready" or "called",
-    "called_time": "<ISO8601 timestamp if status=='called'>"
-  },
-  ...
-]
+Structure of each entry:
+{
+  "name": "Will Smith",
+  "arrived": "2025-04-06 10:15 AM",
+  "status": "ready" or "called",
+  "called_time": "<ISO8601 timestamp if status=='called'>"
+}
 """
 
 # --------------------------------------------------------------------------------
-# 2) TTS (text-to-speech) function
-# --------------------------------------------------------------------------------
-def announce_patient(name: str):
-    """
-    Speaks the patient's name over the default audio device (the machine
-    running this code). Make sure that machine has a speaker as default output.
-    """
-    try:
-        print(f"[TTS] Announcing: {name}")
-        engine = pyttsx3.init()
-
-        # Print out all voices. This helps you debug which voices are available.
-        voices = engine.getProperty('voices')
-        for i, v in enumerate(voices):
-            print(f"[TTS] Voice #{i}: {v.id}")
-
-        # Example: Pick the second available voice if it exists.
-        if len(voices) > 1:
-            engine.setProperty('voice', voices[1].id)
-            print(f"[TTS] Using voice #{1}: {voices[1].id}")
-        else:
-            print("[TTS] Only one voice found. Using default voice.")
-
-        
-
-        # Actual announcement for the patient:
-        phrase = f"{name}, please proceed to the doctor's office."
-        engine.say(phrase)
-
-        engine.runAndWait()
-        print("[TTS] Done speaking.")
-    except Exception as e:
-        print(f"[ERROR] TTS announce_patient failed: {e}")
-
-# --------------------------------------------------------------------------------
-# 3) Cleanup Thread for "called" patients older than 3 hours
+# 2) Cleanup Thread for "called" patients older than 3 hours
 # --------------------------------------------------------------------------------
 def cleanup_thread():
     """
@@ -97,7 +58,7 @@ def start_cleanup():
     t.start()
 
 # --------------------------------------------------------------------------------
-# 4) Flask Routes
+# 3) Flask Routes
 # --------------------------------------------------------------------------------
 @app.route("/")
 def index():
@@ -146,7 +107,7 @@ def post_checked_in():
 @app.route("/api/call_in", methods=["POST"])
 def call_in():
     """
-    Mark a patient "called" + triggers TTS. 
+    Mark a patient "called" (the front-end will do browser-based TTS).
     JSON body: { "name": "Will Smith" }
     """
     data = request.json
@@ -160,9 +121,6 @@ def call_in():
         if p["name"] == name and p["status"] == "ready":
             p["status"] = "called"
             p["called_time"] = datetime.utcnow().isoformat()
-
-            # Speak name in a background thread so we return immediately
-            threading.Thread(target=announce_patient, args=(name,), daemon=True).start()
             found_any = True
             break
 
@@ -205,11 +163,9 @@ def clear_list():
     print("[INFO] All patients cleared.")
     return jsonify({"message": "All patients cleared"}), 200
 
-
 # --------------------------------------------------------------------------------
-# 5) Start the app
+# 4) Start the app
 # --------------------------------------------------------------------------------
 if __name__ == "__main__":
     start_cleanup()
-    # Run on localhost:5000
     app.run(debug=True, port=5000)

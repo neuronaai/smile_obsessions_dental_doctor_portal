@@ -28,7 +28,7 @@ header {
 
 /* Left side has the 150px tall logo */
 .clinic-logo {
-  height: 150px; /* Force the image to be 150 px high */
+  height: 150px; 
   width: auto;
 }
 
