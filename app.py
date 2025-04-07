@@ -11,23 +11,18 @@ CORS(app)
 # --------------------------------------------------------------------------------
 # 1) In-memory data store: 'checked_in_patients'
 # --------------------------------------------------------------------------------
-# We'll still include one dummy patient to test calling in immediately.
-checked_in_patients = [
-    {
-        "name": "John Doe",
-        "arrived": "2025-04-09 09:00 AM",
-        "status": "ready"
-        # "called_time": None  <-- not set until they're called
-    }
-]
+checked_in_patients = []
 """
-Structure of each entry:
-{
-  "name": "Will Smith",
-  "arrived": "2025-04-06 10:15 AM",
-  "status": "ready" or "called",
-  "called_time": "<ISO8601 timestamp if status=='called'>"
-}
+Structure:
+[
+  {
+    "name": "Will Smith",
+    "arrived": "2025-04-06 10:15 AM",
+    "status": "ready" or "called",
+    "called_time": "<ISO8601 timestamp if status=='called'>"
+  },
+  ...
+]
 """
 
 # --------------------------------------------------------------------------------
@@ -35,7 +30,7 @@ Structure of each entry:
 # --------------------------------------------------------------------------------
 def cleanup_thread():
     """
-    Runs every 60s, removing 'called' patients if their called_time is over 3 hours ago.
+    Runs every 60s, removing 'called' patients if their called_time is over 3 hours.
     """
     while True:
         time.sleep(60)
@@ -49,7 +44,6 @@ def cleanup_thread():
                     continue
             updated.append(p)
 
-        # Replace the global list in place
         checked_in_patients.clear()
         checked_in_patients.extend(updated)
 
@@ -75,13 +69,12 @@ def get_current_list():
 @app.route("/api/checked_in", methods=["POST"])
 def post_checked_in():
     """
-    Endpoint for new check-ins. Expects JSON like:
+    Endpoint for new check-ins. JSON example:
         {
           "first_name": "Will",
           "last_name": "Smith",
           "arrived_at": "2025-04-06 10:15 AM"
         }
-    Appends a dict to checked_in_patients with status = "ready".
     """
     data = request.json
     if not data:
@@ -107,7 +100,8 @@ def post_checked_in():
 @app.route("/api/call_in", methods=["POST"])
 def call_in():
     """
-    Mark a patient "called" (the front-end will do browser-based TTS).
+    Mark a patient "called" (server only updates in memory).
+    The browser will handle TTS with Web Speech API.
     JSON body: { "name": "Will Smith" }
     """
     data = request.json
@@ -157,7 +151,7 @@ def uncall():
 @app.route("/api/clear_list", methods=["POST"])
 def clear_list():
     """
-    Clears all patients from the list.
+    Clears all patients from the in-memory list.
     """
     checked_in_patients.clear()
     print("[INFO] All patients cleared.")

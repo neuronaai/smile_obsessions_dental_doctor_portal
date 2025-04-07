@@ -42,7 +42,8 @@ async function loadPatients() {
         callBtn.classList.add('call-button');
         callBtn.onclick = () => handleCallIn(p);
         actionTd.appendChild(callBtn);
-      } else if (p.status === "called") {
+      }
+      else if (p.status === "called") {
         // Show "Uncall" button
         const uncallBtn = document.createElement('button');
         uncallBtn.textContent = "Uncall";
@@ -59,7 +60,7 @@ async function loadPatients() {
   }
 }
 
-/** handleCallIn(patient): sets them to "called" on the server, then announces in-browser. */
+/** handleCallIn(patient): sets them to "called" on the server, then do TTS in browser. */
 async function handleCallIn(patient) {
   try {
     const resp = await fetch('/api/call_in', {
@@ -69,10 +70,9 @@ async function handleCallIn(patient) {
     });
     if (resp.ok) {
       alert(`${patient.name} was called in!`);
-      // Now do the TTS on the client side:
+      // Use Web Speech API in the browser
       announceInBrowser(`${patient.name}, please proceed to the doctor's office.`);
-
-      loadPatients();  // refresh the table to reflect 'called' status
+      loadPatients();
     } else {
       const resData = await resp.json();
       alert("Error calling in patient: " + (resData.error || resp.statusText));
@@ -122,7 +122,7 @@ async function handleClearList() {
 
 /**
  * announceInBrowser(text):
- * Uses the Web Speech API to speak text. The user must have speakers on their device.
+ * Use Web Speech API to speak the text on the client side.
  */
 function announceInBrowser(text) {
   if (!('speechSynthesis' in window)) {
@@ -130,10 +130,7 @@ function announceInBrowser(text) {
     return;
   }
   const utterance = new SpeechSynthesisUtterance(text);
-  // Optional: pick a voice, set pitch/rate, etc.
-  // const voices = speechSynthesis.getVoices();
-  // utterance.voice = voices[0];
-  // utterance.rate = 1.0;
+  // Optional: set voices, pitch, rate, etc.
   speechSynthesis.speak(utterance);
 }
 
