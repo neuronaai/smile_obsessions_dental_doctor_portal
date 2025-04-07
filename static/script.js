@@ -60,16 +60,13 @@ async function loadPatients() {
   }
 }
 
-/** handleCallIn(patient): sets them to "called" */
+/** handleCallIn(patient): sets them to "called" with TTS. */
 async function handleCallIn(patient) {
   try {
     const resp = await fetch('/api/call_in', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: patient.name,
-        arrived: patient.arrived
-      })
+      body: JSON.stringify({ name: patient.name })
     });
     if (resp.ok) {
       alert(`${patient.name} was called in!`);
@@ -83,15 +80,13 @@ async function handleCallIn(patient) {
   }
 }
 
-/** handleUncall(patient): revert them from "called" to "ready" */
+/** handleUncall(patient): revert them from "called" to "ready". */
 async function handleUncall(patient) {
   try {
     const resp = await fetch('/api/uncall', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: patient.name
-      })
+      body: JSON.stringify({ name: patient.name })
     });
     if (resp.ok) {
       alert(`${patient.name} was uncalled!`);
@@ -105,7 +100,7 @@ async function handleUncall(patient) {
   }
 }
 
-/** handleClearList(): calls /api/clear_list to wipe entire list */
+/** handleClearList(): calls /api/clear_list to wipe entire list. */
 async function handleClearList() {
   if (!confirm("Are you sure you want to clear the entire list?")) {
     return;
@@ -123,6 +118,7 @@ async function handleClearList() {
   }
 }
 
+// On page load, load the patient list and refresh every 10s
 window.addEventListener('DOMContentLoaded', () => {
   loadPatients();
   setInterval(loadPatients, 10000);
