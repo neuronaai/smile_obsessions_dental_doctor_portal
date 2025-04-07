@@ -38,14 +38,25 @@ def announce_patient(name: str):
         print(f"[TTS] Announcing: {name}")
         engine = pyttsx3.init()
 
-        # (Optional) Adjust voice or rate. Uncomment if you want:
-        # voices = engine.getProperty('voices')
-        # engine.setProperty('voice', voices[0].id)   # Use index to pick another voice
-        # engine.setProperty('rate', 150)
-        # engine.setProperty('volume', 1.0)
+        # Print out all voices. This helps you debug which voices are available.
+        voices = engine.getProperty('voices')
+        for i, v in enumerate(voices):
+            print(f"[TTS] Voice #{i}: {v.id}")
 
+        # Example: Pick the second available voice if it exists.
+        if len(voices) > 1:
+            engine.setProperty('voice', voices[1].id)
+            print(f"[TTS] Using voice #{1}: {voices[1].id}")
+        else:
+            print("[TTS] Only one voice found. Using default voice.")
+
+        # Quick test phrase so you can confirm TTS is working at runtime:
+        engine.say("Testing, 1 2 3. Hello from pyttsx3!")
+
+        # Actual announcement for the patient:
         phrase = f"{name}, please proceed to the doctor's office."
         engine.say(phrase)
+
         engine.runAndWait()
         print("[TTS] Done speaking.")
     except Exception as e:
