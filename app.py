@@ -12,7 +12,15 @@ CORS(app)
 # --------------------------------------------------------------------------------
 # 1) In-memory data store: 'checked_in_patients'
 # --------------------------------------------------------------------------------
-checked_in_patients = []
+# We'll start with one dummy patient so you can test TTS immediately:
+checked_in_patients = [
+    {
+        "name": "John Doe",
+        "arrived": "2025-04-09 09:00 AM",
+        "status": "ready"
+        # "called_time": None  <-- not needed until they're called
+    }
+]
 """
 Example structure:
 [
@@ -50,8 +58,7 @@ def announce_patient(name: str):
         else:
             print("[TTS] Only one voice found. Using default voice.")
 
-        # Quick test phrase so you can confirm TTS is working at runtime:
-        engine.say("Testing, 1 2 3. Hello from pyttsx3!")
+        
 
         # Actual announcement for the patient:
         phrase = f"{name}, please proceed to the doctor's office."
