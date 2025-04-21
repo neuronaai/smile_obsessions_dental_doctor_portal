@@ -113,7 +113,7 @@ def auto_queue_monitor_thread():
                         dt_arr = apt.get("DateTimeArrived","")
                         # If dt_arr is not "0001-01-01..." or doesn't end with "00:00:00"
                         if dt_arr and not dt_arr.startswith("0001-01-01"):
-                            if dt_arr[-8:] != "00:00:00":
+                            if dt_arr[-8:] == "00:00:00":
                                 arrived_found = True
                                 break
                     if arrived_found:
