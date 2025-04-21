@@ -99,7 +99,7 @@ def queue_monitor_thread():
                         dt_arrived_str = apt.get("DateTimeArrived", "")
                         # e.g. "2025-04-21 00:00:00" => if last 8 != "00:00:00", they're arrived
                         if dt_arrived_str and not dt_arrived_str.startswith("0001-01-01"):
-                            if dt_arrived_str[-8:] != "00:00:00":
+                            if dt_arrived_str[-8:] == "00:00:00":
                                 arrived_found = True
                                 break
                     if arrived_found:
