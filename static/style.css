@@ -60,15 +60,19 @@ h2 {
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
   margin-bottom: 2rem;
 }
+
 .patients-table thead {
   background: #9E7F3B;
   color: #fff;
 }
-.patients-table th, .patients-table td {
+
+.patients-table th,
+.patients-table td {
   text-align: left;
   padding: 0.8rem;
   border-bottom: 1px solid #eee;
 }
+
 .patients-table tr:hover td {
   background: #f9f1db;
 }

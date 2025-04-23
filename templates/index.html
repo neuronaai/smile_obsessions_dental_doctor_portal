@@ -9,7 +9,6 @@
   <!-- Header -->
   <header>
     <div class="header-left">
-      <!-- Provide your own logo.png in /static/ if you want -->
       <img src="{{ url_for('static', filename='logo.png') }}"
            alt="Smile Obsession Logo"
            class="clinic-logo" />
@@ -20,7 +19,7 @@
   </header>
   
   <main class="container">
-    <!-- Some toggle buttons to switch views -->
+    <!-- Toggle buttons to switch views -->
     <div class="view-toggle">
       <button class="call-button" onclick="showCheckedIn()">Show Checked-In</button>
       <button class="call-button" onclick="showQueue()">Show Queue</button>

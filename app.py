@@ -69,8 +69,7 @@ def cleanup_thread():
                     continue
             updated.append(p)
 
-        # We do not need a global here because we are not reassigning
-        # the entire checked_in_patients, only clearing & extending it.
+        # We do not need global here because we're not reassigning the entire list
         checked_in_patients.clear()
         checked_in_patients.extend(updated)
 
@@ -98,15 +97,14 @@ def queue_monitor_thread():
                     arrived_found = False
                     for apt in appointments:
                         dt_arrived_str = apt.get("DateTimeArrived", "")
+                        # e.g. "2025-04-21 00:00:00" => if last 8 != "00:00:00", they're arrived
                         if dt_arrived_str and not dt_arrived_str.startswith("0001-01-01"):
-                            # e.g. "2025-04-21 00:00:00" => if last 8 != "00:00:00", they arrived
                             if dt_arrived_str[-8:] != "00:00:00":
                                 arrived_found = True
                                 break
                     if arrived_found:
-                        print(f"[QUEUE] {name} => DateTimeArrived found => move to checked_in.")
+                        print(f"[QUEUE] {name} => DateTimeArrived changed => move to checked_in.")
                         remove_from_queue(pat_num)
-                        # add them to checked_in
                         checked_in_patients.append({
                             "name": name,
                             "arrived": datetime.utcnow().strftime("%Y-%m-%d %H:%M"),
@@ -123,8 +121,7 @@ def remove_from_queue(pat_num):
     """
     Helper => remove single pat_num from patients_in_queue
     """
-    # We do a full reassignment => declare global first
-    global patients_in_queue
+    global patients_in_queue  # we fully reassign the list below
 
     new_q = []
     for q in patients_in_queue:
@@ -145,7 +142,7 @@ def start_threads():
 def index():
     return render_template("index.html")
 
-# -------------------------- A) Checked-In Endpoints ---------------------------
+# A) Checked-In Endpoints
 @app.route("/api/current_list", methods=["GET"])
 def get_current_list():
     return jsonify(checked_in_patients)
@@ -224,12 +221,11 @@ def uncall():
 
 @app.route("/api/clear_list", methods=["POST"])
 def clear_list():
-    # Here we only do 'checked_in_patients.clear()' => no global needed
     checked_in_patients.clear()
     print("[INFO] All checked_in patients cleared.")
     return jsonify({"message": "All patients cleared"}), 200
 
-# -------------------- B) Patients in Queue -----------------------------------
+# B) Patients in Queue
 @app.route("/api/patients_in_queue", methods=["GET"])
 def get_patients_in_queue():
     return jsonify(patients_in_queue)
@@ -265,7 +261,7 @@ def clear_queue():
     print("[INFO] All queue patients cleared.")
     return jsonify({"message": "Queue cleared"}), 200
 
-# C) Optional: Manually move from queue -> checked_in
+# C) Manually move from queue -> checked_in
 @app.route("/api/queue_to_checked_in", methods=["POST"])
 def queue_to_checked_in():
     """
@@ -275,9 +271,7 @@ def queue_to_checked_in():
     if not data or "pat_num" not in data:
         return jsonify({"error": "Missing pat_num"}), 400
 
-    # declare global BEFORE usage
-    global patients_in_queue  
-
+    global patients_in_queue
     pat_num = data["pat_num"]
     arrived_str = data.get("arrived_at", datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
 
@@ -300,18 +294,17 @@ def queue_to_checked_in():
     else:
         return jsonify({"error": f"No queue patient with pat_num={pat_num}"}), 404
 
-# D) Optional: Manually move from checked_in -> queue
+# D) Manually move from checked_in -> queue
 @app.route("/api/checked_in_to_queue", methods=["POST"])
 def checked_in_to_queue():
     """
     JSON: { "name": "Will Smith", "pat_num": 12345 (optional) }
     """
+    global checked_in_patients
+
     data = request.json
     if not data or "name" not in data:
         return jsonify({"error": "Missing 'name'"}), 400
-
-    # declare global BEFORE usage
-    global checked_in_patients
 
     name = data["name"]
     pat_num = data.get("pat_num", 0)

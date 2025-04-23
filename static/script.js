@@ -1,8 +1,10 @@
 // script.js
 
+// Table bodies
 const patientTableBody = document.getElementById('patientTableBody');
 const queueTableBody   = document.getElementById('queueTableBody');
 
+// Sections
 const checkedInSection = document.getElementById('checkedInSection');
 const queueSection     = document.getElementById('queueSection');
 
@@ -44,22 +46,31 @@ async function loadPatients() {
 
       // action
       const actionTd = document.createElement('td');
+
+      // "Call In" or "Uncall" logic
       if (p.status === "ready") {
         const callBtn = document.createElement('button');
         callBtn.textContent = "Call In";
         callBtn.classList.add('call-button');
         callBtn.onclick = () => handleCallIn(p);
         actionTd.appendChild(callBtn);
-      }
-      else if (p.status === "called") {
+      } else if (p.status === "called") {
         const uncallBtn = document.createElement('button');
         uncallBtn.textContent = "Uncall";
         uncallBtn.classList.add('call-button');
         uncallBtn.onclick = () => handleUncall(p);
         actionTd.appendChild(uncallBtn);
       }
-      tr.appendChild(actionTd);
 
+      // Also a "Move to Queue" button if you want
+      const toQueueBtn = document.createElement('button');
+      toQueueBtn.textContent = "→ Queue";
+      toQueueBtn.classList.add('call-button');
+      toQueueBtn.style.marginLeft = '6px';
+      toQueueBtn.onclick = () => handleCheckedInToQueue(p);
+      actionTd.appendChild(toQueueBtn);
+
+      tr.appendChild(actionTd);
       patientTableBody.appendChild(tr);
     });
   } catch (err) {
@@ -86,7 +97,7 @@ async function loadQueue() {
       nameTd.textContent = q.name;
       tr.appendChild(nameTd);
 
-      // pat_num
+      // patNum
       const patNumTd = document.createElement('td');
       patNumTd.textContent = q.pat_num;
       tr.appendChild(patNumTd);
@@ -96,9 +107,15 @@ async function loadQueue() {
       dateTd.textContent = q.date_added;
       tr.appendChild(dateTd);
 
-      // no direct action column here unless you want to add
-      // e.g. a "Move to Checked-In" button => handleQueueToCheckedIn(q)...
+      // Action => "Move to Checked-In" button
+      const actionTd = document.createElement('td');
+      const arrivedBtn = document.createElement('button');
+      arrivedBtn.textContent = "→ Checked-In";
+      arrivedBtn.classList.add('call-button');
+      arrivedBtn.onclick = () => handleQueueToCheckedIn(q);
+      actionTd.appendChild(arrivedBtn);
 
+      tr.appendChild(actionTd);
       queueTableBody.appendChild(tr);
     });
   } catch (err) {
@@ -175,6 +192,56 @@ async function clearQueue() {
   }
 }
 
+/** handleQueueToCheckedIn(q):
+ * forcibly moves them from queue -> checked_in
+ * by calling POST /api/queue_to_checked_in
+ */
+async function handleQueueToCheckedIn(queueObj) {
+  try {
+    const resp = await fetch('/api/queue_to_checked_in', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pat_num: queueObj.pat_num,
+        arrived_at: new Date().toLocaleString()
+      })
+    });
+    if (resp.ok) {
+      loadQueue();
+      loadPatients();
+    } else {
+      console.error("Error queue_to_checked_in:", await resp.text());
+    }
+  } catch (err) {
+    console.error("Network error queue_to_checked_in:", err);
+  }
+}
+
+/** handleCheckedInToQueue(p):
+ * forcibly moves them from checked_in -> queue
+ * by calling POST /api/checked_in_to_queue
+ */
+async function handleCheckedInToQueue(checkedInObj) {
+  try {
+    const resp = await fetch('/api/checked_in_to_queue', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: checkedInObj.name,
+        pat_num: 0  // or real patNum if you have it
+      })
+    });
+    if (resp.ok) {
+      loadQueue();
+      loadPatients();
+    } else {
+      console.error("Error checked_in_to_queue:", await resp.text());
+    }
+  } catch (err) {
+    console.error("Network error checked_in_to_queue:", err);
+  }
+}
+
 /** announceInBrowser => Web Speech API TTS */
 function announceInBrowser(text) {
   if (!('speechSynthesis' in window)) {
@@ -185,7 +252,7 @@ function announceInBrowser(text) {
   speechSynthesis.speak(utterance);
 }
 
-// On page load, default => "Checked-In", poll both lists
+// On page load => show "Checked-In", then poll both lists
 window.addEventListener('DOMContentLoaded', () => {
   showCheckedIn();
   loadPatients();
