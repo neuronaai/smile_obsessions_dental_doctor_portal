@@ -8,13 +8,14 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)
 
-# --------------------------------------------------------------------------------
-# 1) In-memory data store: 'checked_in_patients'
-# --------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
+# 1) In-memory data store:
+#    A) 'checked_in_patients'
+#    B) 'patients_in_queue'
+# ------------------------------------------------------------------------------
 checked_in_patients = []
 """
-Structure:
-[
+checked_in_patients = [
   {
     "name": "Will Smith",
     "arrived": "2025-04-06 10:15 AM",
@@ -25,9 +26,23 @@ Structure:
 ]
 """
 
-# --------------------------------------------------------------------------------
-# 2) Cleanup Thread for "called" patients older than 3 hours
-# --------------------------------------------------------------------------------
+patients_in_queue = []
+"""
+patients_in_queue = [
+  {
+    "pat_num": 12345,
+    "name": "Test Patient",
+    "date_added": "2025-04-23T14:22:00Z"
+    // potentially "status": "scheduled" or something
+  },
+  ...
+]
+"""
+
+# ------------------------------------------------------------------------------
+# 2) Cleanup Thread (for called patients in "checked_in_patients")
+#    If you also want to remove old queue items, you can adapt similarly
+# ------------------------------------------------------------------------------
 def cleanup_thread():
     """
     Runs every 60s, removing 'called' patients if their called_time is over 3 hours.
@@ -51,18 +66,19 @@ def start_cleanup():
     t = threading.Thread(target=cleanup_thread, daemon=True)
     t.start()
 
-# --------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 # 3) Flask Routes
-# --------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 @app.route("/")
 def index():
     # Renders the main Doctor Dashboard (templates/index.html)
     return render_template("index.html")
 
+# ------------------ A) "Checked-in" Endpoints ------------------
 @app.route("/api/current_list", methods=["GET"])
 def get_current_list():
     """
-    Returns the entire in-memory list of patients as JSON.
+    Returns the entire in-memory list of checked-in patients as JSON.
     """
     return jsonify(checked_in_patients)
 
@@ -81,7 +97,7 @@ def post_checked_in():
         return jsonify({"error": "No JSON provided"}), 400
 
     first = data.get("first_name")
-    last = data.get("last_name")
+    last  = data.get("last_name")
     arrived = data.get("arrived_at", "Unknown")
 
     if not first or not last:
@@ -156,6 +172,56 @@ def clear_list():
     checked_in_patients.clear()
     print("[INFO] All patients cleared.")
     return jsonify({"message": "All patients cleared"}), 200
+
+# ------------------ B) "Patients in Queue" Endpoints ------------------
+@app.route("/api/patients_in_queue", methods=["GET"])
+def get_patients_in_queue():
+    """
+    Returns the entire in-memory list of patients in the queue as JSON.
+    """
+    return jsonify(patients_in_queue)
+
+@app.route("/api/add_to_queue", methods=["POST"])
+def add_to_queue():
+    """
+    Called by the main app if it detects a patient has a same-day appointment.
+    JSON example:
+        {
+          "pat_num": 137768,
+          "first_name": "Will",
+          "last_name": "Smith"
+        }
+    """
+    data = request.json
+    if not data:
+        return jsonify({"error": "No JSON provided"}), 400
+
+    pat_num = data.get("pat_num")
+    f = data.get("first_name", "")
+    l = data.get("last_name", "")
+
+    if not pat_num or not f or not l:
+        return jsonify({"error": "Missing 'pat_num' or name"}), 400
+
+    # Build queue object
+    queue_obj = {
+        "pat_num": pat_num,
+        "name": f"{f} {l}",
+        "date_added": datetime.utcnow().isoformat()
+    }
+    patients_in_queue.append(queue_obj)
+    print(f"[INFO] Added to queue => {queue_obj}")
+
+    return jsonify({"message": "Successfully queued"}), 200
+
+@app.route("/api/clear_queue", methods=["POST"])
+def clear_queue():
+    """
+    Clears all patients from the in-memory 'patients_in_queue' list
+    """
+    patients_in_queue.clear()
+    print("[INFO] All queue patients cleared.")
+    return jsonify({"message": "Queue cleared"}), 200
 
 # --------------------------------------------------------------------------------
 # 4) Start the app

@@ -1,11 +1,29 @@
 // script.js
 
+// Table bodies
 const patientTableBody = document.getElementById('patientTableBody');
+const queueTableBody = document.getElementById('queueTableBody');
+
+// Sections
+const checkedInSection = document.getElementById('checkedInSection');
+const queueSection = document.getElementById('queueSection');
+
+/** Show "Checked-In" section, hide "Queue" */
+function showCheckedIn() {
+  checkedInSection.style.display = 'block';
+  queueSection.style.display = 'none';
+}
+
+/** Show "Queue" section, hide "Checked-In" */
+function showQueue() {
+  checkedInSection.style.display = 'none';
+  queueSection.style.display = 'block';
+}
 
 /**
  * loadPatients():
- * Fetches the current list of checked-in patients from /api/current_list
- * and updates the table in the DOM.
+ * Fetches the "checked_in_patients" from /api/current_list
+ * Fills #patientTableBody
  */
 async function loadPatients() {
   try {
@@ -14,37 +32,28 @@ async function loadPatients() {
       console.error("Failed /api/current_list:", resp.statusText);
       return;
     }
-    const data = await resp.json();  // e.g. [ { name, arrived, status }, ...]
-
-    // Clear existing rows
+    const data = await resp.json();
     patientTableBody.innerHTML = '';
 
     data.forEach((p) => {
       const tr = document.createElement('tr');
-
-      // 1) Name
+      
       const nameTd = document.createElement('td');
       nameTd.textContent = p.name;
       tr.appendChild(nameTd);
 
-      // 2) Arrived
       const arrivedTd = document.createElement('td');
-      arrivedTd.textContent = p.arrived; 
+      arrivedTd.textContent = p.arrived;
       tr.appendChild(arrivedTd);
 
-      // 3) Action
       const actionTd = document.createElement('td');
-
       if (p.status === "ready") {
-        // Show "Call In" button
         const callBtn = document.createElement('button');
         callBtn.textContent = "Call In";
         callBtn.classList.add('call-button');
         callBtn.onclick = () => handleCallIn(p);
         actionTd.appendChild(callBtn);
-      }
-      else if (p.status === "called") {
-        // Show "Uncall" button
+      } else if (p.status === "called") {
         const uncallBtn = document.createElement('button');
         uncallBtn.textContent = "Uncall";
         uncallBtn.classList.add('call-button');
@@ -60,7 +69,44 @@ async function loadPatients() {
   }
 }
 
-/** handleCallIn(patient): sets them to "called" on the server, then do TTS in browser. */
+/**
+ * loadQueue():
+ * Fetches "patients_in_queue" from /api/patients_in_queue
+ * Fills #queueTableBody
+ */
+async function loadQueue() {
+  try {
+    const resp = await fetch('/api/patients_in_queue');
+    if (!resp.ok) {
+      console.error("Failed /api/patients_in_queue:", resp.statusText);
+      return;
+    }
+    const data = await resp.json();
+    queueTableBody.innerHTML = '';
+
+    data.forEach((q) => {
+      const tr = document.createElement('tr');
+
+      const nameTd = document.createElement('td');
+      nameTd.textContent = q.name;
+      tr.appendChild(nameTd);
+
+      const patNumTd = document.createElement('td');
+      patNumTd.textContent = q.pat_num;
+      tr.appendChild(patNumTd);
+
+      const dateTd = document.createElement('td');
+      dateTd.textContent = q.date_added;
+      tr.appendChild(dateTd);
+
+      queueTableBody.appendChild(tr);
+    });
+  } catch (err) {
+    console.error("Error loading queue:", err);
+  }
+}
+
+/** handleCallIn, handleUncall basically the same as before */
 async function handleCallIn(patient) {
   try {
     const resp = await fetch('/api/call_in', {
@@ -69,20 +115,17 @@ async function handleCallIn(patient) {
       body: JSON.stringify({ name: patient.name })
     });
     if (resp.ok) {
-      alert(`${patient.name} was called in!`);
-      // Use Web Speech API in the browser
       announceInBrowser(`${patient.name}, please proceed to the doctor's office.`);
       loadPatients();
     } else {
       const resData = await resp.json();
-      alert("Error calling in patient: " + (resData.error || resp.statusText));
+      console.error("Error calling in patient:", resData.error || resp.statusText);
     }
   } catch (err) {
-    alert("Network error calling in patient: " + err);
+    console.error("Network error calling in patient:", err);
   }
 }
 
-/** handleUncall(patient): revert them from "called" to "ready". */
 async function handleUncall(patient) {
   try {
     const resp = await fetch('/api/uncall', {
@@ -91,51 +134,62 @@ async function handleUncall(patient) {
       body: JSON.stringify({ name: patient.name })
     });
     if (resp.ok) {
-      alert(`${patient.name} was uncalled!`);
       loadPatients();
     } else {
       const resData = await resp.json();
-      alert("Error uncalling patient: " + (resData.error || resp.statusText));
+      console.error("Error uncalling patient:", resData.error || resp.statusText);
     }
   } catch (err) {
-    alert("Network error uncalling patient: " + err);
+    console.error("Network error uncalling patient:", err);
   }
 }
 
-/** handleClearList(): calls /api/clear_list to wipe entire list. */
+/** handleClearList => wipes checked_in_patients */
 async function handleClearList() {
-  if (!confirm("Are you sure you want to clear the entire list?")) {
-    return;
-  }
+  if (!confirm("Are you sure you want to clear the entire list?")) return;
   try {
     const resp = await fetch('/api/clear_list', { method: 'POST' });
     if (resp.ok) {
-      alert("All patients cleared!");
       loadPatients();
     } else {
-      alert("Error clearing list: " + resp.statusText);
+      console.error("Error clearing list:", resp.statusText);
     }
   } catch (err) {
-    alert("Network error clearing list: " + err);
+    console.error("Network error clearing list:", err);
   }
 }
 
-/**
- * announceInBrowser(text):
- * Use Web Speech API to speak the text on the client side.
- */
+/** clearQueue => calls /api/clear_queue */
+async function clearQueue() {
+  if (!confirm("Are you sure you want to clear the entire queue?")) return;
+  try {
+    const resp = await fetch('/api/clear_queue', { method: 'POST' });
+    if (resp.ok) {
+      loadQueue();
+    } else {
+      console.error("Error clearing queue:", resp.statusText);
+    }
+  } catch (err) {
+    console.error("Network error clearing queue:", err);
+  }
+}
+
+/** announceInBrowser => Web Speech API TTS */
 function announceInBrowser(text) {
   if (!('speechSynthesis' in window)) {
     console.warn("This browser does not support speech synthesis.");
     return;
   }
   const utterance = new SpeechSynthesisUtterance(text);
-  // Optional: set voices, pitch, rate, etc.
   speechSynthesis.speak(utterance);
 }
 
-// On page load, load the patient list and refresh every 10s
+// On page load, default to the "Checked-In" view
 window.addEventListener('DOMContentLoaded', () => {
+  showCheckedIn();        // So it reveals the checkedInSection
   loadPatients();
+  loadQueue();
+
   setInterval(loadPatients, 10000);
+  setInterval(loadQueue, 10000);
 });

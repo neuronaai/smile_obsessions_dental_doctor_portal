@@ -8,7 +8,6 @@
 <body>
   <!-- Header -->
   <header>
-    <!-- Replace with your own image file if you have one -->
     <div class="header-left">
       <img src="{{ url_for('static', filename='logo.png') }}"
            alt="Smile Obsession Logo"
@@ -20,32 +19,59 @@
   </header>
   
   <main class="container">
-    <h2>Checked-In Patients</h2>
-    
-    <!-- Clear List button -->
-    <button onclick="handleClearList()" class="call-button" style="margin-bottom: 1rem;">
-      Clear List
-    </button>
+    <!-- Some toggle buttons to switch views -->
+    <div class="view-toggle">
+      <button class="call-button" onclick="showCheckedIn()">Show Checked-In</button>
+      <button class="call-button" onclick="showQueue()">Show Queue</button>
+    </div>
 
-    <table class="patients-table">
-      <thead>
-        <tr>
-          <th style="width:35%">Name</th>
-          <th style="width:35%">Arrived</th>
-          <th style="width:30%">Action</th>
-        </tr>
-      </thead>
-      <tbody id="patientTableBody">
-        <!-- Populated by script.js -->
-      </tbody>
-    </table>
+    <!-- Section for "Checked-In" -->
+    <section id="checkedInSection" style="display: none; margin-top: 1rem;">
+      <h2>Checked-In Patients</h2>
+      <button onclick="handleClearList()" class="call-button" style="margin-bottom: 1rem;">
+        Clear List
+      </button>
+
+      <table class="patients-table">
+        <thead>
+          <tr>
+            <th style="width:35%">Name</th>
+            <th style="width:35%">Arrived</th>
+            <th style="width:30%">Action</th>
+          </tr>
+        </thead>
+        <tbody id="patientTableBody">
+          <!-- Populated by script.js -->
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Section for "Patients in Queue" -->
+    <section id="queueSection" style="display: none; margin-top: 1rem;">
+      <h2>Patients in Queue</h2>
+      <button onclick="clearQueue()" class="call-button" style="margin-bottom: 1rem;">
+        Clear Queue
+      </button>
+
+      <table class="patients-table">
+        <thead>
+          <tr>
+            <th style="width:40%">Name</th>
+            <th style="width:30%">PatNum</th>
+            <th style="width:30%">Added</th>
+          </tr>
+        </thead>
+        <tbody id="queueTableBody">
+          <!-- Populated by script.js => loadQueue() -->
+        </tbody>
+      </table>
+    </section>
   </main>
 
   <footer>
     &copy; 2025 Smile Obsession. All rights reserved.
   </footer>
 
-  <!-- Include your front-end script -->
   <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
