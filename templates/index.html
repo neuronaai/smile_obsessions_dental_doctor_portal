@@ -6,7 +6,6 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
 <body>
-  <!-- Header -->
   <header>
     <div class="header-left">
       <img src="{{ url_for('static', filename='logo.png') }}"
@@ -19,58 +18,68 @@
   </header>
   
   <main class="container">
-    <!-- Toggle buttons to switch views -->
     <div class="view-toggle">
-      <button class="call-button" onclick="showCheckedIn()">Show Checked-In</button>
-      <button class="call-button" onclick="showQueue()">Show Queue</button>
+      <button class="call-button" onclick="showCheckedIn()">Checked-In</button>
+      <button class="call-button" onclick="showAutoQueue()">Auto Queue</button>
+      <button class="call-button" onclick="showDoctorQueue()">Doctor Queue</button>
     </div>
 
-    <!-- Section for "Checked-In" -->
-    <section id="checkedInSection" style="display: none; margin-top: 1rem;">
+    <!-- Section: Checked-In -->
+    <section id="checkedInSection" style="display: none; margin-top:1rem;">
       <h2>Checked-In Patients</h2>
-      <button onclick="handleClearList()" class="call-button" style="margin-bottom: 1rem;">
-        Clear List
-      </button>
+      <button onclick="clearCheckedIn()" class="call-button" style="margin-bottom:1rem;">Clear</button>
 
       <table class="patients-table">
         <thead>
           <tr>
-            <th style="width:35%">Name</th>
-            <th style="width:35%">Arrived</th>
-            <th style="width:30%">Action</th>
+            <th style="width:30%">Name</th>
+            <th style="width:30%">Arrived</th>
+            <th style="width:40%">Actions</th>
           </tr>
         </thead>
-        <tbody id="patientTableBody">
-          <!-- Populated by script.js -->
-        </tbody>
+        <tbody id="checkedInTableBody"></tbody>
       </table>
     </section>
 
-    <!-- Section for "Patients in Queue" -->
-    <section id="queueSection" style="display: none; margin-top: 1rem;">
-      <h2>Patients in Queue</h2>
-      <button onclick="clearQueue()" class="call-button" style="margin-bottom: 1rem;">
-        Clear Queue
-      </button>
+    <!-- Section: Auto Queue -->
+    <section id="autoQueueSection" style="display:none; margin-top:1rem;">
+      <h2>Auto-Queue (Monitored by Thread)</h2>
+      <button onclick="clearAutoQueue()" class="call-button" style="margin-bottom:1rem;">Clear Auto Queue</button>
 
       <table class="patients-table">
         <thead>
           <tr>
             <th style="width:30%">Name</th>
             <th style="width:20%">PatNum</th>
-            <th style="width:30%">Added</th>
-            <th style="width:20%">Action</th>
+            <th style="width:30%">date_added</th>
+            <th style="width:20%">Actions</th>
           </tr>
         </thead>
-        <tbody id="queueTableBody">
-          <!-- Populated by script.js => loadQueue() -->
-        </tbody>
+        <tbody id="autoQueueTableBody"></tbody>
+      </table>
+    </section>
+
+    <!-- Section: Doctor Queue -->
+    <section id="doctorQueueSection" style="display:none; margin-top:1rem;">
+      <h2>Doctor-Queue (No background checks)</h2>
+      <button onclick="clearDoctorQueue()" class="call-button" style="margin-bottom:1rem;">Clear Doctor Queue</button>
+
+      <table class="patients-table">
+        <thead>
+          <tr>
+            <th style="width:30%">Name</th>
+            <th style="width:20%">PatNum</th>
+            <th style="width:30%">date_added</th>
+            <th style="width:20%">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="doctorQueueTableBody"></tbody>
       </table>
     </section>
   </main>
 
   <footer>
-    &copy; 2025 Smile Obsession. All rights reserved.
+    &copy; 2025 Smile Obsession
   </footer>
 
   <script src="{{ url_for('static', filename='script.js') }}"></script>

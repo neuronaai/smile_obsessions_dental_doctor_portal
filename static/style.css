@@ -1,7 +1,7 @@
 /* style.css */
 * {
-  margin: 0;
-  padding: 0;
+  margin: 0; 
+  padding: 0; 
   box-sizing: border-box;
 }
 
@@ -30,71 +30,67 @@ header {
 }
 
 .header-right h1 {
-  font-size: 1.6rem;
-  color: #444;
+  font-size:1.6rem;
+  color:#444;
 }
 
 .container {
-  flex: 1;
-  max-width: 1100px;
-  margin: 2rem auto;
-  width: 100%;
-  padding: 0 1rem;
+  flex:1;
+  max-width:1100px;
+  margin:2rem auto;
+  width:100%;
+  padding:0 1rem;
 }
 
 h2 {
-  margin-bottom: 1.2rem;
-  color: #444;
+  margin-bottom:1.2rem;
+  color:#444;
 }
 
 .view-toggle {
-  display: flex;
-  gap: 1rem;
-  margin-bottom: 1rem;
+  display:flex;
+  gap:1rem;
+  margin-bottom:1rem;
 }
 
 .patients-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-  margin-bottom: 2rem;
+  width:100%;
+  border-collapse:collapse;
+  background:#fff;
+  box-shadow:0 1px 3px rgba(0,0,0,0.1);
+  margin-bottom:2rem;
 }
-
 .patients-table thead {
-  background: #9E7F3B;
-  color: #fff;
+  background:#9E7F3B;
+  color:#fff;
 }
-
-.patients-table th,
-.patients-table td {
-  text-align: left;
-  padding: 0.8rem;
-  border-bottom: 1px solid #eee;
+.patients-table th, .patients-table td {
+  text-align:left;
+  padding:0.8rem;
+  border-bottom:1px solid #eee;
 }
-
 .patients-table tr:hover td {
-  background: #f9f1db;
+  background:#f9f1db;
 }
 
 .call-button {
-  background: #9E7F3B;
-  color: #fff;
-  border: none;
-  padding: 0.4rem 0.8rem;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9rem;
+  background:#9E7F3B;
+  color:#fff;
+  border:none;
+  padding:0.4rem 0.8rem;
+  border-radius:4px;
+  cursor:pointer;
+  font-size:0.9rem;
 }
 .call-button:hover {
-  background: #b8995a;
+  background:#b8995a;
 }
 
 footer {
-  background: #f1f1f1;
-  text-align: center;
-  padding: 0.5rem;
-  color: #666;
-  font-size: 0.9rem;
-  margin-top: auto;
+  background:#f1f1f1;
+  text-align:center;
+  padding:0.5rem;
+  color:#666;
+  font-size:0.9rem;
+  margin-top:auto;
 }

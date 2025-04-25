@@ -1,53 +1,59 @@
-// script.js
+/************************************************************
+ * script.js
+ ************************************************************/
 
-// Table bodies
-const patientTableBody = document.getElementById('patientTableBody');
-const queueTableBody   = document.getElementById('queueTableBody');
+// HTML references
+const checkedInSection   = document.getElementById("checkedInSection");
+const autoQueueSection   = document.getElementById("autoQueueSection");
+const doctorQueueSection = document.getElementById("doctorQueueSection");
 
-// Sections
-const checkedInSection = document.getElementById('checkedInSection');
-const queueSection     = document.getElementById('queueSection');
+const checkedInTableBody   = document.getElementById("checkedInTableBody");
+const autoQueueTableBody   = document.getElementById("autoQueueTableBody");
+const doctorQueueTableBody = document.getElementById("doctorQueueTableBody");
 
-/** Show "Checked-In" section, hide "Queue" */
+/************************************************************
+ * 1. Section Toggles
+ ************************************************************/
 function showCheckedIn() {
   checkedInSection.style.display = 'block';
-  queueSection.style.display = 'none';
+  autoQueueSection.style.display = 'none';
+  doctorQueueSection.style.display = 'none';
 }
-
-/** Show "Queue" section, hide "Checked-In" */
-function showQueue() {
+function showAutoQueue() {
   checkedInSection.style.display = 'none';
-  queueSection.style.display = 'block';
+  autoQueueSection.style.display = 'block';
+  doctorQueueSection.style.display = 'none';
+}
+function showDoctorQueue() {
+  checkedInSection.style.display = 'none';
+  autoQueueSection.style.display = 'none';
+  doctorQueueSection.style.display = 'block';
 }
 
-/** loadPatients => GET /api/current_list => fill #patientTableBody */
-async function loadPatients() {
+/************************************************************
+ * 2. Load Each List
+ ************************************************************/
+async function loadCheckedIn() {
   try {
-    const resp = await fetch('/api/current_list');
-    if (!resp.ok) {
-      console.error("Failed /api/current_list:", resp.statusText);
-      return;
-    }
+    const resp = await fetch('/api/checked_in_list');
+    if (!resp.ok) throw new Error(resp.statusText);
     const data = await resp.json();
-    patientTableBody.innerHTML = '';
+    checkedInTableBody.innerHTML = '';
 
-    data.forEach((p) => {
+    data.forEach(p => {
       const tr = document.createElement('tr');
 
-      // name
-      const nameTd = document.createElement('td');
+      const nameTd    = document.createElement('td');
       nameTd.textContent = p.name;
       tr.appendChild(nameTd);
 
-      // arrived
       const arrivedTd = document.createElement('td');
       arrivedTd.textContent = p.arrived;
       tr.appendChild(arrivedTd);
 
-      // action
-      const actionTd = document.createElement('td');
+      const actionTd  = document.createElement('td');
 
-      // "Call In" or "Uncall" logic
+      // "Call In" / "Uncall"
       if (p.status === "ready") {
         const callBtn = document.createElement('button');
         callBtn.textContent = "Call In";
@@ -62,202 +68,256 @@ async function loadPatients() {
         actionTd.appendChild(uncallBtn);
       }
 
-      // Also a "Move to Queue" button if you want
-      const toQueueBtn = document.createElement('button');
-      toQueueBtn.textContent = "→ Queue";
-      toQueueBtn.classList.add('call-button');
-      toQueueBtn.style.marginLeft = '6px';
-      toQueueBtn.onclick = () => handleCheckedInToQueue(p);
-      actionTd.appendChild(toQueueBtn);
+      // "Move to doctor queue"
+      const toDocQ = document.createElement('button');
+      toDocQ.textContent = "→ Doc Queue";
+      toDocQ.classList.add('call-button');
+      toDocQ.style.marginLeft='5px';
+      toDocQ.onclick = () => handleCheckedInToDocQueue(p);
+      actionTd.appendChild(toDocQ);
 
       tr.appendChild(actionTd);
-      patientTableBody.appendChild(tr);
+      checkedInTableBody.appendChild(tr);
     });
   } catch (err) {
-    console.error("Error loading patients:", err);
+    console.error("loadCheckedIn:", err);
   }
 }
 
-/** loadQueue => GET /api/patients_in_queue => fill #queueTableBody */
-async function loadQueue() {
+async function loadAutoQueue() {
   try {
-    const resp = await fetch('/api/patients_in_queue');
-    if (!resp.ok) {
-      console.error("Failed /api/patients_in_queue:", resp.statusText);
-      return;
-    }
+    const resp = await fetch('/api/auto_queue_list');
+    if (!resp.ok) throw new Error(resp.statusText);
     const data = await resp.json();
-    queueTableBody.innerHTML = '';
+    autoQueueTableBody.innerHTML = '';
 
-    data.forEach((q) => {
+    data.forEach(q => {
       const tr = document.createElement('tr');
 
-      // name
       const nameTd = document.createElement('td');
       nameTd.textContent = q.name;
       tr.appendChild(nameTd);
 
-      // patNum
       const patNumTd = document.createElement('td');
       patNumTd.textContent = q.pat_num;
       tr.appendChild(patNumTd);
 
-      // date_added
       const dateTd = document.createElement('td');
       dateTd.textContent = q.date_added;
       tr.appendChild(dateTd);
 
-      // Action => "Move to Checked-In" button
       const actionTd = document.createElement('td');
-      const arrivedBtn = document.createElement('button');
-      arrivedBtn.textContent = "→ Checked-In";
-      arrivedBtn.classList.add('call-button');
-      arrivedBtn.onclick = () => handleQueueToCheckedIn(q);
-      actionTd.appendChild(arrivedBtn);
+      // "Force Move to Checked-In"
+      const moveBtn = document.createElement('button');
+      moveBtn.textContent = "→ Checked-In";
+      moveBtn.classList.add('call-button');
+      moveBtn.onclick = () => handleAutoToCheckedIn(q);
+      actionTd.appendChild(moveBtn);
 
       tr.appendChild(actionTd);
-      queueTableBody.appendChild(tr);
+      autoQueueTableBody.appendChild(tr);
     });
   } catch (err) {
-    console.error("Error loading queue:", err);
+    console.error("loadAutoQueue:", err);
   }
 }
 
-/** handleCallIn => set "called" for a 'ready' patient */
-async function handleCallIn(patient) {
+async function loadDoctorQueue() {
   try {
-    const resp = await fetch('/api/call_in', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: patient.name })
+    const resp = await fetch('/api/doctor_queue_list');
+    if (!resp.ok) throw new Error(resp.statusText);
+    const data = await resp.json();
+    doctorQueueTableBody.innerHTML = '';
+
+    data.forEach(q => {
+      const tr = document.createElement('tr');
+
+      const nameTd = document.createElement('td');
+      nameTd.textContent = q.name;
+      tr.appendChild(nameTd);
+
+      const patNumTd = document.createElement('td');
+      patNumTd.textContent = q.pat_num;
+      tr.appendChild(patNumTd);
+
+      const dateTd = document.createElement('td');
+      dateTd.textContent = q.date_added;
+      tr.appendChild(dateTd);
+
+      const actionTd = document.createElement('td');
+      // "Move to Checked-In"
+      const moveBtn = document.createElement('button');
+      moveBtn.textContent = "→ Checked-In";
+      moveBtn.classList.add('call-button');
+      moveBtn.onclick = () => handleDocToCheckedIn(q);
+      actionTd.appendChild(moveBtn);
+
+      tr.appendChild(actionTd);
+      doctorQueueTableBody.appendChild(tr);
     });
-    if (resp.ok) {
-      announceInBrowser(`${patient.name}, please proceed to the doctor's office.`);
-      loadPatients();
-    } else {
-      const resData = await resp.json();
-      console.error("Error calling in patient:", resData.error || resp.statusText);
-    }
   } catch (err) {
-    console.error("Network error calling in patient:", err);
+    console.error("loadDoctorQueue:", err);
   }
 }
 
-/** handleUncall => revert "called" => "ready" */
-async function handleUncall(patient) {
+/************************************************************
+ * 3. Buttons & Helpers
+ ************************************************************/
+async function clearCheckedIn() {
+  if (!confirm("Clear all checked-in patients?")) return;
   try {
-    const resp = await fetch('/api/uncall', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: patient.name })
+    const resp = await fetch('/api/clear_checked_in', { method:'POST' });
+    if (!resp.ok) throw new Error(await resp.text());
+    loadCheckedIn();
+  } catch (err) {
+    console.error("clearCheckedIn:",err);
+  }
+}
+
+async function clearAutoQueue() {
+  if (!confirm("Clear the entire auto-queue?")) return;
+  try {
+    const resp = await fetch('/api/clear_auto_queue',{ method:'POST' });
+    if (!resp.ok) throw new Error(await resp.text());
+    loadAutoQueue();
+  } catch(err){
+    console.error("clearAutoQueue:",err);
+  }
+}
+
+async function clearDoctorQueue() {
+  if (!confirm("Clear the entire doctor queue?")) return;
+  try {
+    const resp = await fetch('/api/clear_doctor_queue',{ method:'POST' });
+    if (!resp.ok) throw new Error(await resp.text());
+    loadDoctorQueue();
+  } catch(err){
+    console.error("clearDoctorQueue:",err);
+  }
+}
+
+/** handleCallIn => POST /api/call_in => set status=called */
+async function handleCallIn(p){
+  try {
+    const resp = await fetch('/api/call_in',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ name:p.name, pat_num:p.pat_num })
     });
-    if (resp.ok) {
-      loadPatients();
+    if(resp.ok){
+      announceInBrowser(`${p.name}, please proceed to the doctor's office.`);
+      loadCheckedIn();
     } else {
-      const resData = await resp.json();
-      console.error("Error uncalling patient:", resData.error || resp.statusText);
+      console.error("handleCallIn error:",await resp.text());
     }
-  } catch (err) {
-    console.error("Network error uncalling patient:", err);
+  } catch(err){
+    console.error("handleCallIn:",err);
   }
 }
 
-/** handleClearList => POST /api/clear_list => empty checked_in */
-async function handleClearList() {
-  if (!confirm("Are you sure you want to clear the entire list?")) return;
+/** handleUncall => revert called->ready */
+async function handleUncall(p){
   try {
-    const resp = await fetch('/api/clear_list', { method: 'POST' });
-    if (resp.ok) {
-      loadPatients();
+    const resp = await fetch('/api/uncall',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ name:p.name, pat_num:p.pat_num })
+    });
+    if(resp.ok){
+      loadCheckedIn();
     } else {
-      console.error("Error clearing list:", resp.statusText);
+      console.error("handleUncall error:",await resp.text());
     }
-  } catch (err) {
-    console.error("Network error clearing list:", err);
+  } catch(err){
+    console.error("handleUncall:",err);
   }
 }
 
-/** clearQueue => POST /api/clear_queue => empty queue */
-async function clearQueue() {
-  if (!confirm("Are you sure you want to clear the entire queue?")) return;
+/** handleAutoToCheckedIn => manually move from auto_queue => checked_in */
+async function handleAutoToCheckedIn(q){
   try {
-    const resp = await fetch('/api/clear_queue', { method: 'POST' });
-    if (resp.ok) {
-      loadQueue();
-    } else {
-      console.error("Error clearing queue:", resp.statusText);
-    }
-  } catch (err) {
-    console.error("Network error clearing queue:", err);
-  }
-}
-
-/** handleQueueToCheckedIn(q):
- * forcibly moves them from queue -> checked_in
- * by calling POST /api/queue_to_checked_in
- */
-async function handleQueueToCheckedIn(queueObj) {
-  try {
-    const resp = await fetch('/api/queue_to_checked_in', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        pat_num: queueObj.pat_num,
-        arrived_at: new Date().toLocaleString()
+    const resp = await fetch('/api/auto_to_checked_in',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        pat_num:q.pat_num,
+        arrived_at:new Date().toLocaleString()
       })
     });
-    if (resp.ok) {
-      loadQueue();
-      loadPatients();
+    if(resp.ok){
+      loadAutoQueue();
+      loadCheckedIn();
     } else {
-      console.error("Error queue_to_checked_in:", await resp.text());
+      console.error("handleAutoToCheckedIn error:",await resp.text());
     }
-  } catch (err) {
-    console.error("Network error queue_to_checked_in:", err);
+  } catch(err){
+    console.error("handleAutoToCheckedIn:",err);
   }
 }
 
-/** handleCheckedInToQueue(p):
- * forcibly moves them from checked_in -> queue
- * by calling POST /api/checked_in_to_queue
- */
-async function handleCheckedInToQueue(checkedInObj) {
+/** handleDocToCheckedIn => move from doctor_queue => checked_in */
+async function handleDocToCheckedIn(q){
   try {
-    const resp = await fetch('/api/checked_in_to_queue', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: checkedInObj.name,
-        pat_num: 0  // or real patNum if you have it
+    const resp = await fetch('/api/doctor_to_checked_in',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        pat_num:q.pat_num,
+        arrived_at:new Date().toLocaleString()
       })
     });
-    if (resp.ok) {
-      loadQueue();
-      loadPatients();
+    if(resp.ok){
+      loadDoctorQueue();
+      loadCheckedIn();
     } else {
-      console.error("Error checked_in_to_queue:", await resp.text());
+      console.error("handleDocToCheckedIn error:",await resp.text());
     }
-  } catch (err) {
-    console.error("Network error checked_in_to_queue:", err);
+  } catch(err){
+    console.error("handleDocToCheckedIn:",err);
   }
 }
 
-/** announceInBrowser => Web Speech API TTS */
-function announceInBrowser(text) {
-  if (!('speechSynthesis' in window)) {
-    console.warn("This browser does not support speech synthesis.");
+/** handleCheckedInToDocQueue => from checked_in => doctor_queue */
+async function handleCheckedInToDocQueue(p){
+  try {
+    const resp = await fetch('/api/checked_in_to_doctor_queue',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ pat_num:p.pat_num })
+    });
+    if(resp.ok){
+      loadCheckedIn();
+      loadDoctorQueue();
+    } else {
+      console.error("handleCheckedInToDocQueue error:",await resp.text());
+    }
+  } catch(err){
+    console.error("handleCheckedInToDocQueue:",err);
+  }
+}
+
+/************************************************************
+ * 4. Web Speech TTS
+ ************************************************************/
+function announceInBrowser(text){
+  if(!('speechSynthesis' in window)){
+    console.warn("No speechSynthesis in this browser");
     return;
   }
-  const utterance = new SpeechSynthesisUtterance(text);
-  speechSynthesis.speak(utterance);
+  const ut = new SpeechSynthesisUtterance(text);
+  speechSynthesis.speak(ut);
 }
 
-// On page load => show "Checked-In", then poll both lists
+/************************************************************
+ * 5. Initialize
+ ************************************************************/
 window.addEventListener('DOMContentLoaded', () => {
   showCheckedIn();
-  loadPatients();
-  loadQueue();
+  loadCheckedIn();
+  loadAutoQueue();
+  loadDoctorQueue();
 
-  setInterval(loadPatients, 10000);
-  setInterval(loadQueue, 10000);
+  setInterval(loadCheckedIn,  10000);
+  setInterval(loadAutoQueue, 10000);
+  setInterval(loadDoctorQueue,10000);
 });
