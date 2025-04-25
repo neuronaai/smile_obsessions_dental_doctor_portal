@@ -18,23 +18,19 @@ doctor_queue = []
 
 """
 checked_in_patients = [
-  { "pat_num": 1234, "name": "Will Smith", "arrived": "2025-04-06 10:15",
-    "status": "ready" or "called", "called_time": "<ISO8601 if 'called'>" }
+  { "pat_num":1234, "name":"Will Smith", "arrived":"2025-04-06 10:15",
+    "status":"ready" or "called", "called_time":"<ISO8601 if 'called'>" }
 ]
-
 auto_queue = [
-  { "pat_num": 9999, "name": "Test Patient", "date_added": "2025-04-23T14:22:00Z" },
-  ...
+  { "pat_num":9999, "name":"Test Patient", "date_added":"2025-04-23T14:22:00Z" }
 ]
-
 doctor_queue = [
-  { "pat_num": 1111, "name": "Another Person", "date_added": "2025-04-23T14:22:00Z" },
-  ...
+  { "pat_num":1111, "name":"Another Person", "date_added":"2025-04-23T14:22:00Z" }
 ]
 """
 
 # ------------------------------------------------------------------------------
-# 2) OD Credentials
+# 2) OD Credentials (for checking DateTimeArrived)
 # ------------------------------------------------------------------------------
 OD_DEVELOPER_KEY = os.environ.get("OD_API_DEV_KEY", "A0NnBNFvx4DjbwRb")
 OD_CUSTOMER_KEY  = os.environ.get("OD_API_CUST_KEY", "JQ1BkECEdo3XILEy")
@@ -49,7 +45,7 @@ OD_HEADERS = {
 # ------------------------------------------------------------------------------
 def cleanup_thread():
     """
-    Every 60s, remove 'called' patients if they've been 'called' >3 hours
+    Every 60s, remove 'called' patients if they've been 'called' >3 hours.
     """
     while True:
         time.sleep(60)
@@ -69,12 +65,11 @@ def auto_queue_monitor_thread():
     """
     Every 30s => for each patient in auto_queue:
       1) GET /appointments?PatNum=xxx
-      2) If dt_arr ends with "00:00:00" => treat them as "arrived" (TEST scenario).
-      3) Move them from auto_queue => checked_in
-      4) Sleep 11s between each patient call to avoid overlap
+      2) If DateTimeArrived != "0001-01-01 00:00:00" => arrived => move them to checked_in
+      3) Sleep 11s between each patient to avoid overlapping requests
     """
     while True:
-        print("[DEBUG] auto_queue_monitor_thread waking up; checking queue...")
+        print("[DEBUG] auto_queue_monitor_thread waking up; checking auto_queue...")
         time.sleep(30)
 
         # Copy snapshot to avoid concurrency issues
@@ -90,25 +85,25 @@ def auto_queue_monitor_thread():
             try:
                 resp = requests.get(apt_url, headers=OD_HEADERS, timeout=5)
                 if resp.ok:
-                    data = resp.json()
+                    appointments = resp.json()
                     arrived_found = False
-                    print(f"[DEBUG] Received {len(data)} appointments for pat_num={pat_num}.")
-                    for apt in data:
-                        dt_arr = apt.get("DateTimeArrived","")
-                        # We ONLY consider it arrived if dt_arr is not blank, not "0001-01-01...", 
-                        # AND ends with "00:00:00" => your custom test.
-                        print(f"[DEBUG] Appointment has dt_arr={dt_arr}")
-                        if dt_arr and not dt_arr.startswith("0001-01-01"):
-                            if dt_arr.endswith("00:00:00"):
-                                arrived_found = True
-                                print(f"[DEBUG] => Found dt_arr that ends w/ 00:00:00 => treating as arrived.")
-                                break
+                    print(f"[DEBUG] Received {len(appointments)} appointments for pat_num={pat_num}.")
+                    
+                    for apt in appointments:
+                        dt_arr = apt.get("DateTimeArrived", "")
+                        print(f"[DEBUG] Appointment => DateTimeArrived={dt_arr}")
+                        
+                        # Typical "arrived" logic: if dt_arr is neither empty nor the default "0001-01-01 00:00:00"
+                        if dt_arr and dt_arr != "0001-01-01 00:00:00":
+                            arrived_found = True
+                            print(f"[DEBUG] => Found arrived dt_arr => {dt_arr}. Moving to checked_in.")
+                            break
+                    
                     if arrived_found:
-                        print(f"[AUTO_QUEUE] {name} => arrived => move to checked_in.")
+                        # Move from auto_queue to checked_in
                         remove_from_auto_queue(pat_num)
                         remove_from_doctor_queue(pat_num)
                         remove_from_checked_in(pat_num)
-
                         checked_in_patients.append({
                             "pat_num": pat_num,
                             "name": name,
@@ -116,13 +111,12 @@ def auto_queue_monitor_thread():
                             "status": "ready"
                         })
                     else:
-                        print(f"[DEBUG] pat_num={pat_num}, no apt had DateTimeArrived ending in 00:00:00.")
+                        print(f"[DEBUG] pat_num={pat_num} => no 'arrived' condition found.")
                 else:
                     print(f"[WARN] GET {apt_url} => {resp.status_code}, {resp.text}")
             except requests.RequestException as e:
                 print("[ERROR] auto_queue_monitor_thread =>", e)
 
-            # Sleep 11s before checking next patient
             time.sleep(11)
 
 def start_threads():
