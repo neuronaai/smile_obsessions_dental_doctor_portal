@@ -1,12 +1,10 @@
 // script.js
 
-// Table bodies
 const patientTableBody = document.getElementById('patientTableBody');
-const queueTableBody = document.getElementById('queueTableBody');
+const queueTableBody   = document.getElementById('queueTableBody');
 
-// Sections
 const checkedInSection = document.getElementById('checkedInSection');
-const queueSection = document.getElementById('queueSection');
+const queueSection     = document.getElementById('queueSection');
 
 /** Show "Checked-In" section, hide "Queue" */
 function showCheckedIn() {
@@ -20,11 +18,7 @@ function showQueue() {
   queueSection.style.display = 'block';
 }
 
-/**
- * loadPatients():
- * Fetches the "checked_in_patients" from /api/current_list
- * Fills #patientTableBody
- */
+/** loadPatients => GET /api/current_list => fill #patientTableBody */
 async function loadPatients() {
   try {
     const resp = await fetch('/api/current_list');
@@ -37,15 +31,18 @@ async function loadPatients() {
 
     data.forEach((p) => {
       const tr = document.createElement('tr');
-      
+
+      // name
       const nameTd = document.createElement('td');
       nameTd.textContent = p.name;
       tr.appendChild(nameTd);
 
+      // arrived
       const arrivedTd = document.createElement('td');
       arrivedTd.textContent = p.arrived;
       tr.appendChild(arrivedTd);
 
+      // action
       const actionTd = document.createElement('td');
       if (p.status === "ready") {
         const callBtn = document.createElement('button');
@@ -53,7 +50,8 @@ async function loadPatients() {
         callBtn.classList.add('call-button');
         callBtn.onclick = () => handleCallIn(p);
         actionTd.appendChild(callBtn);
-      } else if (p.status === "called") {
+      }
+      else if (p.status === "called") {
         const uncallBtn = document.createElement('button');
         uncallBtn.textContent = "Uncall";
         uncallBtn.classList.add('call-button');
@@ -69,11 +67,7 @@ async function loadPatients() {
   }
 }
 
-/**
- * loadQueue():
- * Fetches "patients_in_queue" from /api/patients_in_queue
- * Fills #queueTableBody
- */
+/** loadQueue => GET /api/patients_in_queue => fill #queueTableBody */
 async function loadQueue() {
   try {
     const resp = await fetch('/api/patients_in_queue');
@@ -87,17 +81,23 @@ async function loadQueue() {
     data.forEach((q) => {
       const tr = document.createElement('tr');
 
+      // name
       const nameTd = document.createElement('td');
       nameTd.textContent = q.name;
       tr.appendChild(nameTd);
 
+      // pat_num
       const patNumTd = document.createElement('td');
       patNumTd.textContent = q.pat_num;
       tr.appendChild(patNumTd);
 
+      // date_added
       const dateTd = document.createElement('td');
       dateTd.textContent = q.date_added;
       tr.appendChild(dateTd);
+
+      // no direct action column here unless you want to add
+      // e.g. a "Move to Checked-In" button => handleQueueToCheckedIn(q)...
 
       queueTableBody.appendChild(tr);
     });
@@ -106,7 +106,7 @@ async function loadQueue() {
   }
 }
 
-/** handleCallIn, handleUncall basically the same as before */
+/** handleCallIn => set "called" for a 'ready' patient */
 async function handleCallIn(patient) {
   try {
     const resp = await fetch('/api/call_in', {
@@ -126,6 +126,7 @@ async function handleCallIn(patient) {
   }
 }
 
+/** handleUncall => revert "called" => "ready" */
 async function handleUncall(patient) {
   try {
     const resp = await fetch('/api/uncall', {
@@ -144,7 +145,7 @@ async function handleUncall(patient) {
   }
 }
 
-/** handleClearList => wipes checked_in_patients */
+/** handleClearList => POST /api/clear_list => empty checked_in */
 async function handleClearList() {
   if (!confirm("Are you sure you want to clear the entire list?")) return;
   try {
@@ -159,7 +160,7 @@ async function handleClearList() {
   }
 }
 
-/** clearQueue => calls /api/clear_queue */
+/** clearQueue => POST /api/clear_queue => empty queue */
 async function clearQueue() {
   if (!confirm("Are you sure you want to clear the entire queue?")) return;
   try {
@@ -184,9 +185,9 @@ function announceInBrowser(text) {
   speechSynthesis.speak(utterance);
 }
 
-// On page load, default to the "Checked-In" view
+// On page load, default => "Checked-In", poll both lists
 window.addEventListener('DOMContentLoaded', () => {
-  showCheckedIn();        // So it reveals the checkedInSection
+  showCheckedIn();
   loadPatients();
   loadQueue();
 
