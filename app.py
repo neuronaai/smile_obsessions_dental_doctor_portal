@@ -13,49 +13,28 @@ CORS(app)
 # 1) In-memory data
 # ------------------------------------------------------------------------------
 checked_in_patients = []
-"""
-Example:
-checked_in_patients = [
-  {
-    "pat_num": 1234,
-    "name": "Will Smith",
-    "arrived": "2025-04-06 10:15",
-    "status": "ready" or "called",
-    "called_time": "<ISO8601 if 'called'>"
-  },
-  ...
-]
-"""
-
 auto_queue = []
+doctor_queue = []
+
 """
-Placed here by Emmersa => /api/add_to_queue
-Background thread checks 'DateTimeArrived' => moves them to checked_in.
-[
-  {
-    "pat_num": 9999,
-    "name": "Test Patient",
-    "date_added": "2025-04-23T14:22:00Z"
-  },
+checked_in_patients = [
+  { "pat_num": 1234, "name": "Will Smith", "arrived": "2025-04-06 10:15",
+    "status": "ready" or "called", "called_time": "<ISO8601 if 'called'>" }
+]
+
+auto_queue = [
+  { "pat_num": 9999, "name": "Test Patient", "date_added": "2025-04-23T14:22:00Z" },
   ...
 ]
-"""
 
-doctor_queue = []
-"""
-Manual queue the doctor can use => no automatic checks
-[
-  {
-    "pat_num": 1111,
-    "name": "Another Person",
-    "date_added": "2025-04-23T14:22:00Z"
-  },
+doctor_queue = [
+  { "pat_num": 1111, "name": "Another Person", "date_added": "2025-04-23T14:22:00Z" },
   ...
 ]
 """
 
 # ------------------------------------------------------------------------------
-# 2) OD Credentials (for checking DateTimeArrived)
+# 2) OD Credentials
 # ------------------------------------------------------------------------------
 OD_DEVELOPER_KEY = os.environ.get("OD_API_DEV_KEY", "A0NnBNFvx4DjbwRb")
 OD_CUSTOMER_KEY  = os.environ.get("OD_API_CUST_KEY", "JQ1BkECEdo3XILEy")
@@ -70,12 +49,11 @@ OD_HEADERS = {
 # ------------------------------------------------------------------------------
 def cleanup_thread():
     """
-    Every 60s, remove 'called' patients if they've been 'called' > 3 hours.
+    Every 60s, remove 'called' patients if they've been 'called' >3 hours
     """
     while True:
         time.sleep(60)
         now = datetime.utcnow()
-        # We'll build a new list of patients that survive
         survivors = []
         for p in checked_in_patients:
             if p["status"] == "called" and "called_time" in p:
@@ -84,7 +62,6 @@ def cleanup_thread():
                     print(f"[CLEANUP] Removing {p['name']} (called >3h ago).")
                     continue
             survivors.append(p)
-        # Mutate in place
         checked_in_patients.clear()
         checked_in_patients.extend(survivors)
 
@@ -92,29 +69,39 @@ def auto_queue_monitor_thread():
     """
     Every 30s => for each patient in auto_queue:
       1) GET /appointments?PatNum=xxx
-      2) If we see DateTimeArrived != '...00:00:00', they've arrived => remove from auto_queue => put in checked_in.
-      3) Sleep 11s between each patient to avoid overlapping requests
+      2) If dt_arr ends with "00:00:00" => treat them as "arrived" (TEST scenario).
+      3) Move them from auto_queue => checked_in
+      4) Sleep 11s between each patient call to avoid overlap
     """
     while True:
+        print("[DEBUG] auto_queue_monitor_thread waking up; checking queue...")
         time.sleep(30)
-        # Copy the current auto_queue to avoid concurrency issues
+
+        # Copy snapshot to avoid concurrency issues
         snapshot = auto_queue[:]
+        if not snapshot:
+            print("[DEBUG] auto_queue is empty, nothing to do.")
         for q in snapshot:
             pat_num = q["pat_num"]
             name    = q["name"]
-            apt_url = f"{OD_BASE_URL}/appointments?PatNum={pat_num}"
+            print(f"[DEBUG] Checking pat_num={pat_num}, name={name} for arrival...")
 
+            apt_url = f"{OD_BASE_URL}/appointments?PatNum={pat_num}"
             try:
                 resp = requests.get(apt_url, headers=OD_HEADERS, timeout=5)
                 if resp.ok:
                     data = resp.json()
                     arrived_found = False
+                    print(f"[DEBUG] Received {len(data)} appointments for pat_num={pat_num}.")
                     for apt in data:
                         dt_arr = apt.get("DateTimeArrived","")
-                        # If dt_arr is not "0001-01-01..." or doesn't end with "00:00:00"
+                        # We ONLY consider it arrived if dt_arr is not blank, not "0001-01-01...", 
+                        # AND ends with "00:00:00" => your custom test.
+                        print(f"[DEBUG] Appointment has dt_arr={dt_arr}")
                         if dt_arr and not dt_arr.startswith("0001-01-01"):
-                            if dt_arr[-8:] == "00:00:00":
+                            if dt_arr.endswith("00:00:00"):
                                 arrived_found = True
+                                print(f"[DEBUG] => Found dt_arr that ends w/ 00:00:00 => treating as arrived.")
                                 break
                     if arrived_found:
                         print(f"[AUTO_QUEUE] {name} => arrived => move to checked_in.")
@@ -128,11 +115,14 @@ def auto_queue_monitor_thread():
                             "arrived": datetime.utcnow().strftime("%Y-%m-%d %H:%M"),
                             "status": "ready"
                         })
+                    else:
+                        print(f"[DEBUG] pat_num={pat_num}, no apt had DateTimeArrived ending in 00:00:00.")
                 else:
                     print(f"[WARN] GET {apt_url} => {resp.status_code}, {resp.text}")
             except requests.RequestException as e:
                 print("[ERROR] auto_queue_monitor_thread =>", e)
 
+            # Sleep 11s before checking next patient
             time.sleep(11)
 
 def start_threads():
@@ -142,7 +132,7 @@ def start_threads():
     t2.start()
 
 # ------------------------------------------------------------------------------
-# 4) Helper Removal Functions (no global needed; we mutate in place)
+# 4) Helper Removal Functions
 # ------------------------------------------------------------------------------
 def remove_from_auto_queue(pn):
     new_list = [q for q in auto_queue if q["pat_num"] != pn]
@@ -221,8 +211,7 @@ def get_auto_queue_list():
 @app.route("/api/add_to_queue", methods=["POST"])
 def add_to_queue():
     """
-    Emmersa calls this => places patient in 'auto_queue'.
-    We remove them from other lists to avoid duplication.
+    Emmersa calls this => places patient in 'auto_queue'
     JSON => { "pat_num":..., "first_name":"...", "last_name":"..." }
     """
     data = request.json
@@ -267,7 +256,6 @@ def auto_to_checked_in():
     pat_num = data["pat_num"]
     arrived_str = data.get("arrived_at", datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
 
-    # find & remove from auto_queue
     found=None
     new_auto=[]
     for q in auto_queue:
@@ -279,10 +267,8 @@ def auto_to_checked_in():
     auto_queue.extend(new_auto)
 
     if found:
-        # also remove from doctor_queue + checked_in if any
         remove_from_doctor_queue(pat_num)
         remove_from_checked_in(pat_num)
-
         checked_in_patients.append({
             "pat_num": pat_num,
             "name": found["name"],
