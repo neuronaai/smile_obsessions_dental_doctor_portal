@@ -14,13 +14,14 @@ CORS(app)
 # ------------------------------------------------------------------------------
 checked_in_patients = []
 """
+Example:
 checked_in_patients = [
   {
+    "pat_num": 1234,
     "name": "Will Smith",
-    "pat_num": 1234, 
     "arrived": "2025-04-06 10:15",
     "status": "ready" or "called",
-    "called_time": "<ISO8601> if called"
+    "called_time": "<ISO8601 if 'called'>"
   },
   ...
 ]
@@ -28,10 +29,12 @@ checked_in_patients = [
 
 auto_queue = []
 """
-auto_queue = [
+Placed here by Emmersa => /api/add_to_queue
+Background thread checks 'DateTimeArrived' => moves them to checked_in.
+[
   {
     "pat_num": 9999,
-    "name": "Testing Person",
+    "name": "Test Patient",
     "date_added": "2025-04-23T14:22:00Z"
   },
   ...
@@ -40,10 +43,11 @@ auto_queue = [
 
 doctor_queue = []
 """
-doctor_queue = [
+Manual queue the doctor can use => no automatic checks
+[
   {
     "pat_num": 1111,
-    "name": "Manual Person",
+    "name": "Another Person",
     "date_added": "2025-04-23T14:22:00Z"
   },
   ...
@@ -51,7 +55,7 @@ doctor_queue = [
 """
 
 # ------------------------------------------------------------------------------
-# 2) OD Credentials (for background checking DateTimeArrived)
+# 2) OD Credentials (for checking DateTimeArrived)
 # ------------------------------------------------------------------------------
 OD_DEVELOPER_KEY = os.environ.get("OD_API_DEV_KEY", "A0NnBNFvx4DjbwRb")
 OD_CUSTOMER_KEY  = os.environ.get("OD_API_CUST_KEY", "JQ1BkECEdo3XILEy")
@@ -62,11 +66,11 @@ OD_HEADERS = {
 }
 
 # ------------------------------------------------------------------------------
-# 3) Threads
+# 3) Background Threads
 # ------------------------------------------------------------------------------
 def cleanup_thread():
     """
-    Every 60s, remove 'called' patients if more than 3 hours old.
+    Every 60s, remove 'called' patients if they've been 'called' > 3 hours.
     """
     while True:
         time.sleep(60)
@@ -75,8 +79,8 @@ def cleanup_thread():
         for p in checked_in_patients:
             if p["status"] == "called" and "called_time" in p:
                 dt_called = datetime.fromisoformat(p["called_time"])
-                if now - dt_called > timedelta(hours=3):
-                    print(f"[CLEANUP] Removing {p['name']} (called > 3h ago).")
+                if (now - dt_called) > timedelta(hours=3):
+                    print(f"[CLEANUP] Removing {p['name']} (called >3h ago).")
                     continue
             updated.append(p)
 
@@ -85,55 +89,49 @@ def cleanup_thread():
 
 def auto_queue_monitor_thread():
     """
-    Every 30s => check all patients in auto_queue:
-      /appointments?PatNum=xxx 
-      -> if DateTimeArrived != '00:00:00', move them to checked_in
-      -> remove from auto_queue
-      Wait 11s between each patient to avoid overlap
+    Every 30s => for each patient in auto_queue:
+      1) GET /appointments?PatNum=xxx
+      2) If we see DateTimeArrived != '...00:00:00', they've arrived => remove from auto_queue => put in checked_in.
+      3) Sleep 11s between each patient to avoid overlapping requests
     """
     while True:
         time.sleep(30)
-        queue_snapshot = auto_queue[:]  # copy so we don't skip items if we remove them
-        for q in queue_snapshot:
+        snapshot = auto_queue[:]  # copy in case it changes mid-loop
+        for q in snapshot:
             pat_num = q["pat_num"]
             name    = q["name"]
             apt_url = f"{OD_BASE_URL}/appointments?PatNum={pat_num}"
+
             try:
                 resp = requests.get(apt_url, headers=OD_HEADERS, timeout=5)
                 if resp.ok:
-                    appts = resp.json()
+                    data = resp.json()
                     arrived_found = False
-                    for apt in appts:
-                        dt_arrived = apt.get("DateTimeArrived", "")
-                        # if it's not "0001-01-01 ..." or doesn't end with "00:00:00", we treat them as arrived
-                        if dt_arrived and not dt_arrived.startswith("0001-01-01"):
-                            if dt_arrived[-8:] != "00:00:00":
+                    for apt in data:
+                        dt_arr = apt.get("DateTimeArrived","")
+                        # if dt_arr isn't "0001-01-01..." or doesn't end w/ 00:00:00 => arrived
+                        if dt_arr and not dt_arr.startswith("0001-01-01"):
+                            if dt_arr[-8:] != "00:00:00":
                                 arrived_found = True
                                 break
                     if arrived_found:
-                        print(f"[AUTO-QUEUE] {name} => arrived => move to checked_in.")
+                        print(f"[AUTO_QUEUE] {name} => arrived => move to checked_in.")
                         remove_from_auto_queue(pat_num)
+                        remove_from_doctor_queue(pat_num)
+                        remove_from_checked_in(pat_num)
+
                         checked_in_patients.append({
-                            "name": name,
                             "pat_num": pat_num,
+                            "name": name,
                             "arrived": datetime.utcnow().strftime("%Y-%m-%d %H:%M"),
                             "status": "ready"
                         })
                 else:
                     print(f"[WARN] GET {apt_url} => {resp.status_code}, {resp.text}")
-
             except requests.RequestException as e:
                 print("[ERROR] auto_queue_monitor_thread =>", e)
 
             time.sleep(11)
-
-def remove_from_auto_queue(pat_num):
-    global auto_queue
-    new_list = []
-    for q in auto_queue:
-        if q["pat_num"] != pat_num:
-            new_list.append(q)
-    auto_queue = new_list
 
 def start_threads():
     t1 = threading.Thread(target=cleanup_thread, daemon=True)
@@ -142,63 +140,67 @@ def start_threads():
     t2.start()
 
 # ------------------------------------------------------------------------------
-# 4) Flask Routes
+# 4) Helper: remove from any list (by pat_num)
+# ------------------------------------------------------------------------------
+def remove_from_auto_queue(pn):
+    global auto_queue
+    new_list = [q for q in auto_queue if q["pat_num"] != pn]
+    auto_queue = new_list
+
+def remove_from_doctor_queue(pn):
+    global doctor_queue
+    new_list = [q for q in doctor_queue if q["pat_num"] != pn]
+    doctor_queue = new_list
+
+def remove_from_checked_in(pn):
+    global checked_in_patients
+    new_list = [p for p in checked_in_patients if p["pat_num"] != pn]
+    checked_in_patients = new_list
+
+# ------------------------------------------------------------------------------
+# 5) Routes
 # ------------------------------------------------------------------------------
 @app.route("/")
 def index():
     return render_template("index.html")
 
-# -------------- A) CHECKED-IN PATIENTS --------------
+# ---------------- A) CHECKED-IN ----------------
 @app.route("/api/checked_in_list", methods=["GET"])
 def get_checked_in_list():
     return jsonify(checked_in_patients)
 
 @app.route("/api/call_in", methods=["POST"])
 def call_in():
-    """
-    JSON: { "name":"...", "pat_num":xxx }
-    Mark them status="called" => possible TTS call
-    """
     data = request.json
     if not data or "name" not in data:
-        return jsonify({"error":"Missing name"}), 400
-
+        return jsonify({"error":"No name"}),400
     name = data["name"]
-    found = False
+    found=False
     for p in checked_in_patients:
-        # match on pat_num if you want to be safer
-        if p["name"] == name and p["status"] == "ready":
-            p["status"] = "called"
+        if p["name"] == name and p["status"]=="ready":
+            p["status"]="called"
             p["called_time"] = datetime.utcnow().isoformat()
-            found = True
+            found=True
             break
-
     if not found:
-        return jsonify({"error":f"No 'ready' patient named '{name}'"}),404
-
+        return jsonify({"error":f"No 'ready' patient named {name}"}),404
     return jsonify({"message":f"Called in {name}"}),200
 
 @app.route("/api/uncall", methods=["POST"])
 def uncall():
-    """
-    JSON: { "name":"...", "pat_num":xxx }
-    Revert them from "called" => "ready"
-    """
-    data = request.json
+    data=request.json
     if not data or "name" not in data:
-        return jsonify({"error":"Missing name"}),400
-
-    name = data["name"]
-    found = False
+        return jsonify({"error":"No name"}),400
+    name=data["name"]
+    found=False
     for p in checked_in_patients:
-        if p["name"] == name and p["status"]=="called":
-            p["status"] = "ready"
+        if p["name"]==name and p["status"]=="called":
+            p["status"]="ready"
             p.pop("called_time",None)
-            found = True
+            found=True
             break
     if not found:
-        return jsonify({"error":f"No 'called' patient with name {name}"}),404
-
+        return jsonify({"error":f"No 'called' patient with name={name}"}),404
     return jsonify({"message":f"Uncalled {name}"}),200
 
 @app.route("/api/clear_checked_in", methods=["POST"])
@@ -206,41 +208,38 @@ def clear_checked_in():
     checked_in_patients.clear()
     return jsonify({"message":"All checked_in cleared"}),200
 
-# -------------- B) AUTO QUEUE --------------
+# ---------------- B) AUTO QUEUE ----------------
 @app.route("/api/auto_queue_list", methods=["GET"])
 def get_auto_queue_list():
     return jsonify(auto_queue)
 
-@app.route("/api/add_to_auto_queue", methods=["POST"])
-def add_to_auto_queue():
+@app.route("/api/add_to_queue", methods=["POST"])
+def add_to_queue():
     """
-    The AI calls this if a patient has a same-day appt and 'DateTimeArrived' is presumably 00:00.
-    If the dateTimeArrived was NOT 00:00, we STILL place them here (your request).
-    Then the background thread will move them => checked_in if we see they arrived.
-    JSON: { "pat_num":..., "first_name":"...", "last_name":"..." }
+    Emmersa calls this => places patient in 'auto_queue'.
+    We remove them from other lists to avoid duplication.
+    JSON => { "pat_num":..., "first_name":"...", "last_name":"..." }
     """
-    data = request.json
+    data=request.json
     if not data:
         return jsonify({"error":"No JSON"}),400
-
     pat_num = data.get("pat_num")
-    fname   = data.get("first_name","")
-    lname   = data.get("last_name","")
-    if not pat_num or not fname or not lname:
+    f = data.get("first_name","")
+    l = data.get("last_name","")
+
+    if not pat_num or not f or not l:
         return jsonify({"error":"Missing pat_num / name"}),400
 
-    # remove from any list they might be in, to avoid duplication
-    remove_from_auto_queue(pat_num) 
+    remove_from_auto_queue(pat_num)
     remove_from_doctor_queue(pat_num)
     remove_from_checked_in(pat_num)
 
-    # Then add
     auto_queue.append({
         "pat_num": pat_num,
-        "name": f"{fname} {lname}",
+        "name": f"{f} {l}",
         "date_added": datetime.utcnow().isoformat()
     })
-    return jsonify({"message":"Added to auto queue"}),200
+    return jsonify({"message":"Added to auto_queue"}),200
 
 @app.route("/api/clear_auto_queue", methods=["POST"])
 def clear_auto_queue():
@@ -250,41 +249,42 @@ def clear_auto_queue():
 @app.route("/api/auto_to_checked_in", methods=["POST"])
 def auto_to_checked_in():
     """
-    Doctor forcibly moves them from auto_queue => checked_in
-    JSON: { "pat_num":..., "arrived_at":... (optional) }
+    Doctor forcibly moves from auto_queue => checked_in
+    JSON => { "pat_num":..., "arrived_at":... (optional) }
     """
-    global auto_queue
-    data = request.json
+    data=request.json
     if not data or "pat_num" not in data:
         return jsonify({"error":"Missing pat_num"}),400
-
     pat_num = data["pat_num"]
     arrived_str = data.get("arrived_at", datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
 
+    # remove from auto_queue
     removed=None
-    new_auto=[]
+    new_list=[]
     for q in auto_queue:
-        if q["pat_num"] == pat_num:
-            removed = q
+        if q["pat_num"]==pat_num:
+            removed=q
         else:
-            new_auto.append(q)
-    auto_queue = new_auto
+            new_list.append(q)
+    global auto_queue
+    auto_queue=new_list
 
     if removed:
-        # remove from checked_in to avoid duplicates
+        # also remove from doctor_queue + checked_in if any
+        remove_from_doctor_queue(pat_num)
         remove_from_checked_in(pat_num)
-        # add
+
         checked_in_patients.append({
+            "pat_num": pat_num,
             "name": removed["name"],
-            "pat_num":pat_num,
             "arrived": arrived_str,
             "status":"ready"
         })
         return jsonify({"message":f"Moved {removed['name']} to checked_in"}),200
     else:
-        return jsonify({"error":f"No auto_queue patient with pat_num={pat_num}"}),404
+        return jsonify({"error":f"No auto_queue pat_num={pat_num}"}),404
 
-# -------------- C) DOCTOR QUEUE --------------
+# ---------------- C) DOCTOR QUEUE ----------------
 @app.route("/api/doctor_queue_list", methods=["GET"])
 def get_doctor_queue_list():
     return jsonify(doctor_queue)
@@ -292,17 +292,15 @@ def get_doctor_queue_list():
 @app.route("/api/add_to_doctor_queue", methods=["POST"])
 def add_to_doctor_queue():
     """
-    Doctor forcibly places a patient in a manual queue (no background calls).
-    JSON: { "pat_num":..., "first_name":"...", "last_name":"..." }
+    JSON => { "pat_num":..., "first_name":"...", "last_name":"..." }
     """
-    global doctor_queue
-    data = request.json
+    data=request.json
     if not data:
         return jsonify({"error":"No JSON"}),400
-
     pat_num = data.get("pat_num")
     fname   = data.get("first_name","")
     lname   = data.get("last_name","")
+
     if not pat_num or not fname or not lname:
         return jsonify({"error":"Missing pat_num / name"}),400
 
@@ -325,19 +323,18 @@ def clear_doctor_queue():
 @app.route("/api/doctor_to_checked_in", methods=["POST"])
 def doctor_to_checked_in():
     """
-    Move from doc queue => checked_in
-    JSON: { "pat_num":..., "arrived_at":... (optional) }
+    Move from doctor_queue => checked_in
+    JSON => { "pat_num":..., "arrived_at":... (optional) }
     """
-    global doctor_queue
-    data = request.json
+    data=request.json
     if not data or "pat_num" not in data:
         return jsonify({"error":"Missing pat_num"}),400
-
-    pat_num=data["pat_num"]
-    arrived_str=data.get("arrived_at", datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
+    pat_num = data["pat_num"]
+    arrived = data.get("arrived_at", datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
 
     removed=None
     new_doc=[]
+    global doctor_queue
     for q in doctor_queue:
         if q["pat_num"]==pat_num:
             removed=q
@@ -346,73 +343,55 @@ def doctor_to_checked_in():
     doctor_queue=new_doc
 
     if removed:
+        remove_from_auto_queue(pat_num)
         remove_from_checked_in(pat_num)
         checked_in_patients.append({
-            "name": removed["name"],
             "pat_num": pat_num,
-            "arrived": arrived_str,
+            "name": removed["name"],
+            "arrived": arrived,
             "status":"ready"
         })
-        return jsonify({"message":f"Moved {removed['name']} to checked_in"}),200
+        return jsonify({"message":f"Moved {removed['name']} => checked_in"}),200
     else:
-        return jsonify({"error":f"No doc_queue patient with pat_num={pat_num}"}),404
+        return jsonify({"error":f"No doc_queue pat_num={pat_num}"}),404
 
-# -------------- D) Move from checked_in => doctor_queue --------------
 @app.route("/api/checked_in_to_doctor_queue", methods=["POST"])
 def checked_in_to_doctor_queue():
     """
-    JSON: { "pat_num":..., "arrived_at":... (optional) }
+    Move from checked_in => doctor_queue
+    JSON => { "pat_num":... }
     """
-    global checked_in_patients
     data = request.json
     if not data or "pat_num" not in data:
         return jsonify({"error":"Missing pat_num"}),400
-
     pat_num=data["pat_num"]
 
+    # remove from checked_in
     removed=None
-    new_list=[]
+    new_ci=[]
+    global checked_in_patients
     for p in checked_in_patients:
         if p["pat_num"]==pat_num:
             removed=p
         else:
-            new_list.append(p)
-    checked_in_patients=new_list
+            new_ci.append(p)
+    checked_in_patients=new_ci
 
     if removed:
-        remove_from_doctor_queue(pat_num)
         remove_from_auto_queue(pat_num)
+        remove_from_doctor_queue(pat_num)
         doctor_queue.append({
             "pat_num": pat_num,
             "name": removed["name"],
             "date_added": datetime.utcnow().isoformat()
         })
-        return jsonify({"message":f"Moved {removed['name']} to doctor_queue"}),200
+        return jsonify({"message":f"Moved {removed['name']} => doctor_queue"}),200
     else:
-        return jsonify({"error":f"No checked_in found with pat_num={pat_num}"}),404
+        return jsonify({"error":f"No checked_in with pat_num={pat_num}"}),404
 
 # ------------------------------------------------------------------------------
-# 5) Helpers to remove from the three lists by pat_num
+# 6) Start the Threads + Flask
 # ------------------------------------------------------------------------------
-def remove_from_doctor_queue(pat_num):
-    global doctor_queue
-    new_doc=[]
-    for q in doctor_queue:
-        if q["pat_num"] != pat_num:
-            new_doc.append(q)
-    doctor_queue=new_doc
-
-def remove_from_checked_in(pat_num):
-    global checked_in_patients
-    new_list=[]
-    for p in checked_in_patients:
-        if p["pat_num"]!=pat_num:
-            new_list.append(p)
-    checked_in_patients=new_list
-
-# ------------------------------------------------------------------------------
-# 6) Start
-# ------------------------------------------------------------------------------
-if __name__ == "__main__":
+if __name__=="__main__":
     start_threads()
-    app.run(debug=True, port=5000)
+    app.run(debug=True,port=5000)

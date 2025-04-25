@@ -25,10 +25,9 @@
     </div>
 
     <!-- Section: Checked-In -->
-    <section id="checkedInSection" style="display: none; margin-top:1rem;">
+    <section id="checkedInSection" style="display:none; margin-top:1rem;">
       <h2>Checked-In Patients</h2>
-      <button onclick="clearCheckedIn()" class="call-button" style="margin-bottom:1rem;">Clear</button>
-
+      <button class="call-button" style="margin-bottom:1rem;" onclick="clearCheckedIn()">Clear Checked-In</button>
       <table class="patients-table">
         <thead>
           <tr>
@@ -44,8 +43,7 @@
     <!-- Section: Auto Queue -->
     <section id="autoQueueSection" style="display:none; margin-top:1rem;">
       <h2>Auto-Queue (Monitored by Thread)</h2>
-      <button onclick="clearAutoQueue()" class="call-button" style="margin-bottom:1rem;">Clear Auto Queue</button>
-
+      <button class="call-button" style="margin-bottom:1rem;" onclick="clearAutoQueue()">Clear Auto Queue</button>
       <table class="patients-table">
         <thead>
           <tr>
@@ -61,9 +59,8 @@
 
     <!-- Section: Doctor Queue -->
     <section id="doctorQueueSection" style="display:none; margin-top:1rem;">
-      <h2>Doctor-Queue (No background checks)</h2>
-      <button onclick="clearDoctorQueue()" class="call-button" style="margin-bottom:1rem;">Clear Doctor Queue</button>
-
+      <h2>Doctor Queue (No Auto Checks)</h2>
+      <button class="call-button" style="margin-bottom:1rem;" onclick="clearDoctorQueue()">Clear Doctor Queue</button>
       <table class="patients-table">
         <thead>
           <tr>
